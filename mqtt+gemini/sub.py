@@ -2,80 +2,72 @@
 import paho.mqtt.client as mqtt
 import time
 import json
+import re  # For cleaning up LLM output
 
-from gemini_ai_call import * 
+from gemini_ai_call import *  # Make sure these imports are correct
 from gemini_myapi import *
 
-# 0. Importing the necessary functions for the Gemini API LLM Interaction to Work
-def __get_gemini_client__() -> genai.GenerativeModel:
-    genai.configure(api_key=the_api_key)
-    gemini_model = genai.GenerativeModel("gemini-1.5-flash")
-    return gemini_model
-
-gemini_model = __get_gemini_client__()
+# ... (Gemini API setup as before)
 
 def on_connect(client, userdata, flags, rc):
     if rc == 0:
-        print("Successfully connected to the University broker")
-        # Subscribe to topic
-        client.subscribe("gemini_llm_test/uscolleges/schdetails")
+        print("Successfully connected to the Health broker")
+        client.subscribe("gemini_llm_test/healthsensor")  # Subscribe to the correct topic
     else:
         print(f"Connection failed with code {rc}")
-      
 
 def on_message(client, userdata, msg):
-    
-    # 1. Receive and decode the MQTT message
     received_message = msg.payload.decode()
 
     try:
-        data = json.loads(received_message) # Parse the JSON
-        school_name = data.get("Institution_Name")  # Extract school name, handle missing key
-    except json.JSONDecodeError:
-        school_name = "Invalid JSON Received" # Handle JSON decoding errors
-    except Exception as e:
-        school_name = f"Error: {e}"
+        data = json.loads(received_message)
+        # Extract relevant health data points
+        spo2 = data.get("SpO2")
+        blood_glucose = data.get("Blood_Glucose")
+        heart_rate = data.get("Heart_Rate")
+        dehydration = data.get("Dehydration_Level")
+        pulse = data.get("Pulse")
+        temperature = data.get("Body_Temperature")
+        timestamp = data.get("timestamp")
 
-    # Improved separator with emojis and a clearer title with the school name
-    print(f"\n✨ {school_name} Insights & History 📜\n{'-'*50}\n")
+    except (json.JSONDecodeError, KeyError) as e:  # Handle both JSON and key errors
+        print(f"Error processing message: {e}")
+        return  # Exit early if there's a problem with the data
 
-    print("A. Message Payload From Developed JSON file via a subscription topic:\n", received_message, "\n")
+    print(f"\n✨ Health Data Received at {timestamp} ✨\n{'-'*50}\n")
+    print(f"SpO2: {spo2}, Blood Glucose: {blood_glucose}, Heart Rate: {heart_rate}, Dehydration: {dehydration}, Pulse: {pulse}, Temperature: {temperature}\n")
 
-    # 2. Create a prompt for the Gemini API
     prompt = f"""
-                Generate a comprehensive summary analysis of this school and its corresponding data, 
-                tailored for a student considering college in the US.  
+    You are a helpful and informative health advisor.  A patient is using a personal health sensor and has provided the following data.  Please provide general advice and insights based on this data.  Do not give medical diagnoses or treatment recommendations.  If any values are outside of typical ranges, mention that the patient should consult with a healthcare professional.  Be respectful and avoid alarming language.  Structure your response clearly using bullet points for each metric.
 
-                Specifically, please include the following:
+    ```json
+    {received_message}
+    ```
+    """
 
-                *   A detailed overview of the school's academics, student life, and campus culture.
-                *   Information about the year the school was founded.
-                *   One historic event that significantly shaped the college's identity.
-                *   One unique aspect that makes this university stand out from other institutions.  This could be a special program, a distinctive research focus, a unique tradition, or any other factor that sets it apart.
-
-                Here is the information about the school:
-
-                ```json
-                {received_message}
-              """
-
-    # 3. Call the Gemini API
     try:
         response = gemini_model.generate_content(prompt).text
-        print("\nB. Gemini LLM's Response:\n")
-        for line in response.split("\n"):
-            print(f"  - {line}")
-        print("\n")
-        
-        # Saving only the response to a JSON file as context for future LLM interactions
-        with open("llm_responses.json", "a") as f:
-            json.dump(response, f, indent=4)
-            f.write("\n") 
-    except Exception as e:
-        print(f"🚨 Error calling Gemini API: {e}")  # Added an error emoji
 
-    # 4. Separator (Now with emojis and a nicer look including the school name)
-    print(f"\n{'-'*50}\n✨ End of {school_name} Analysis ✨\n🎓🏫\n") # More emojis and a clear "End of Analysis" message with the school's name
+        # Clean up LLM output (remove extra newlines, etc.)
+        cleaned_response = re.sub(r'\n+', '\n', response).strip()
+
+        print("\nB. Health Insights and Advice:\n")
+        for line in cleaned_response.split("\n"):
+            print(f" - {line}") # Bullet points for each piece of advice
+        print("\n")
+
+        # Save LLM responses (append to the file)
+        with open("llm_responses.json", "a") as f:
+            json.dump({"timestamp": timestamp, "health_data": data, "llm_response": cleaned_response}, f, indent=4) # Save the data, timestamp and response
+            f.write("\n")
+
+    except Exception as e:
+        print(f"🚨 Error calling Gemini API: {e}")
+
+    print(f"\n{'-'*50}\n✨ End of Health Analysis ✨\n🩺💖\n")
+
+
+# ... (rest of the code - subscriber setup, colorama header, etc. - remains the same)
 
 # Create subscriber client
 subscriber = mqtt.Client()
@@ -92,30 +84,33 @@ subscriber.connect("test.mosquitto.org", 1883, 60)
 
 from colorama import init, Fore, Style
 
-init(autoreset=True)  # Initialize colorama for cross-platform color support
+init(autoreset=True)  # Initialize colorama
 
-def display_app_header():
-    print(Fore.CYAN + Style.BRIGHT + f"""
+def display_health_header():
+    print(Fore.MAGENTA + Style.BRIGHT + f"""
 {'='*60}
-{' '*10}🏛️ CAMPUS CHRONICLES 🎓
+{' '*15}💖 HEALTH INSIGHTS 🩺
 {'='*60}
-{Fore.GREEN}🔍 Discover the Hidden Stories of Academic Institutions! 📜✨
+{Fore.GREEN}🔬 Monitoring Your Well-being with AI ✨
 {'-'*60}
-{Fore.YELLOW}Explore • Learn • Connect • Inspire
+{Fore.YELLOW}Explore • Learn • Empower
 {'-'*60}
 {Style.RESET_ALL}
 """)
 
-def main_menu():
-    display_app_header()
+def main_menu():  # You might not need a menu in this case, but I'll leave it
+    display_health_header()
     print(Fore.CYAN + """
 WHAT TO EXPECT:
 -----------
-1. 🏫 University Profiles
-2. 📚 Historical Archives
-3. 🌐 Campus Insights
+1. 📈 Real-time Health Monitoring
+2. 🧠 AI-Powered Insights
+3. 🤝 Personalized Advice (General)
 
     """ + Style.RESET_ALL)
+
+# # Call the header display function (you can call it directly)
+# display_health_header() # No need for a menu if just showing health data
 
 # Call the function to demonstrate
 main_menu()

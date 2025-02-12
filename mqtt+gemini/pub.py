@@ -23,36 +23,26 @@ publisher.connect("test.mosquitto.org", 1883, 60)
 publisher.loop_start()
 
 try:
-    with open('../datasets/schoolsdata.json', 'r') as f:
-        schools = json.load(f)
-
     while True:
-        
-        # Randomly select a school from the list
-        school = random.choice(schools)
-        
-        school_data = {
-            "Unit_ID": school["Unit ID"],
-            "Institution_Name": school["Institution Name"],
-            "Avg_Net_Price": school["Avg Net Price"],
-            "City": school["City"],
-            "State": school["State"],
-            "Zip_Code": school["Zip Code"],
-            "Category": school["Category"],
-            "SAT_Reading_75th": school["SAT Reading 75th"],
-            "SAT_Math_75th": school["SAT Math 75th"],
+        health_data = {
+            "SpO2": round(random.uniform(90, 100), 1),  # Realistic SpO2 range
+            "Blood_Glucose": random.randint(70, 150),  # Realistic Blood Glucose range
+            "Heart_Rate": random.randint(60, 100),  # Realistic Heart Rate range
+            "Dehydration_Level": round(random.uniform(0, 10), 1), # Example dehydration scale (0-10)
+            "Pulse": random.randint(60, 100), # Same range as heart rate (often similar)
+            "Body_Temperature": round(random.uniform(97.0, 99.0), 1), # Realistic body temperature range
             "timestamp": datetime.now().isoformat()
         }
 
-        topic = "gemini_llm_test/uscolleges/schdetails"
+        topic = "gemini_llm_test/healthsensor" # More appropriate topic name
         publisher.publish(
             topic,
-            json.dumps(school_data),
+            json.dumps(health_data),
             qos=1
         )
-        print(f"Published to {topic}: {school_data}")
+        print(f"Published to {topic}: {health_data}")
         time.sleep(1)  # Adjust sleep time as needed
-        
+
 except KeyboardInterrupt:
     print("Stopping publisher...")
     publisher.loop_stop()
