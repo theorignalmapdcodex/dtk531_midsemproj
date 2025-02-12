@@ -7,7 +7,13 @@ import re  # For cleaning up LLM output
 from gemini_ai_call import *  # Make sure these imports are correct
 from gemini_myapi import *
 
-# ... (Gemini API setup as before)
+# Importing the necessary functions for the Gemini API LLM Interaction to Work
+def __get_gemini_client__() -> genai.GenerativeModel:
+    genai.configure(api_key=the_api_key)
+    gemini_model = genai.GenerativeModel("gemini-1.5-flash")
+    return gemini_model
+
+gemini_model = __get_gemini_client__()
 
 def on_connect(client, userdata, flags, rc):
     if rc == 0:
