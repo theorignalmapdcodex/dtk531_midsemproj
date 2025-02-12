@@ -72,10 +72,8 @@ def on_message(client, userdata, msg):
 
     print(f"\n{'-'*50}\n✨ End of Health Analysis ✨\n🩺💖\n")
 
-
-# ... (rest of the code - subscriber setup, colorama header, etc. - remains the same)
-
-# Create subscriber client
+#################################################################################################################
+                    #---------- Creating the subscriber client ---------#
 subscriber = mqtt.Client()
 subscriber.on_connect = on_connect
 subscriber.on_message = on_message
