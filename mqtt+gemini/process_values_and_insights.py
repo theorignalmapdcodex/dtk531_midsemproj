@@ -1,16 +1,5 @@
 import json
 
-# def analyze_insights():
-#     try:
-#         with open("llm_insights.json", "r") as f:
-#             responses = f.readlines()
-#             return responses
-#     except FileNotFoundError:
-#         print("No responses found in llm_insights.json")
-#         return []
-    
-    
-    
 def analyze_insights(filename="llm_insights.json"):
     try:
         with open(filename, "r") as f:
@@ -24,13 +13,30 @@ def analyze_insights(filename="llm_insights.json"):
             return insights
     except FileNotFoundError:
         return []
-    
 
 if __name__ == "__main__":
-    responses = analyze_insights()
-    for response in responses:
-        # Assuming each response is on a separate line
-        print("LLM Insights:")
-        print(response.strip())  # Remove leading/trailing whitespace
-        print("\n")  # Add a newline after each response
-        print("++++++++++++++++++++++++++++++++++++++++++++++++\n")
+    insights = analyze_insights()
+    if insights:  # Check if any insights were loaded
+        for insight in insights:
+            print("LLM Insights:")
+
+            # Access and print the specific data you want
+            timestamp = insight.get("timestamp")
+            health_data = insight.get("health_data")
+            llm_response = insight.get("llm_response")
+
+            if timestamp:
+                print(f"  Timestamp: {timestamp}")
+            if health_data:
+                print("  Health Data:")
+                for key, value in health_data.items():
+                    print(f"    {key}: {value}")
+            if llm_response:
+                print("  LLM Response:")
+                # Print the multiline response nicely
+                for line in llm_response.splitlines():  # Split into lines
+                    print(f"    {line}")
+
+            print("\n++++++++++++++++++++++++++++++++++++++++++++++++\n")
+    else:
+        print("No insights found.")  # Handle the case where no insights are loaded
