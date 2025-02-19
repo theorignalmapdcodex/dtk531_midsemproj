@@ -63,7 +63,7 @@ def on_message(client, userdata, msg):
         print("\n")
 
         # Save LLM responses (append to the file)
-        with open("llm_responses.json", "a") as f:
+        with open("llm_insights.json", "a") as f:
             json.dump({"timestamp": timestamp, "health_data": data, "llm_response": cleaned_response}, f, indent=4) # Save the data, timestamp and response
             f.write("\n")
 

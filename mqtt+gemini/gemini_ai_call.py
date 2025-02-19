@@ -1,28 +1,32 @@
 import google.generativeai as genai
 from typing import List, Optional
 
-# Function to query Gemini API (Text)
-def query_gemini_api(user_text: str, gemini_model: genai.GenerativeModel) -> str:
-    """
-    Calls the Gemini API with the user's text input and returns the response.
 
-    Args:
-        user_text (str): The text input from the user.
-        gemini_model (GenerativeModel): Initialized Gemini model instance.
+# # Function to query Gemini API (Text)
+# Conversation history (list of dictionaries)
+conversation_history = []
 
-    Returns:
-        str: The generated response from the Gemini API.
-    """
+def query_gemini_api(user_text: str, gemini_model: genai.GenerativeModel, history: list) -> str:
+    """Queries the Gemini API, including conversation history."""
     try:
-        # Generate content using Gemini model's structured prompt
-        response = gemini_model.generate_content(user_text)  # User's query
-        
-        # Resolve the response to ensure all processing is completed
+        prompt = user_text  # Start with the user's text
+
+        # Adding conversation history to the prompt (if any); Modified with Gemini AI on 4 Feb 25 @ 1:35pm
+        if history:
+            formatted_history = ""
+            for turn in history:
+                formatted_history += f"User: {turn['user']}\nGemini: {turn['gemini']}\n"
+
+            prompt = formatted_history + prompt  # Prepend history to current prompt
+
+        response = gemini_model.generate_content(prompt)
         response.resolve()
-        
-        # Return the text content from the response
-        return response
+        gemini_response = response.text
+
+        # Update conversation history
+        history.append({"user": user_text, "gemini": gemini_response})
+
+        return gemini_response
 
     except Exception as e:
-        # Handle and return any errors
         return f"An error occurred: {e}"
