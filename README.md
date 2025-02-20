@@ -99,6 +99,7 @@ Health insights are stored in `llm_insights.json` with the following structure:
     },
     "llm_response": "AI-generated insights"
 }
+```
 
 ## References
 1. [Google Gemini AI](https://deepmind.google/technologies/gemini/) - Code generation
