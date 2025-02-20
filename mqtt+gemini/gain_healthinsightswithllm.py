@@ -1,4 +1,3 @@
-# subscriber.py
 import paho.mqtt.client as mqtt
 import time
 import json
@@ -27,7 +26,7 @@ def on_message(client, userdata, msg):
 
     try:
         data = json.loads(received_message)
-        # Extract relevant health data points
+        # Extract relevant health data points including context
         spo2 = data.get("SpO2")
         blood_glucose = data.get("Blood_Glucose")
         heart_rate = data.get("Heart_Rate")
@@ -35,21 +34,57 @@ def on_message(client, userdata, msg):
         pulse = data.get("Pulse")
         temperature = data.get("Body_Temperature")
         timestamp = data.get("timestamp")
+        context = data.get("context", "default")  # Get the context
 
+        # Context-specific prompts
+        context_prompts = {
+            "pregnant": """You are a caring health advisor specializing in pregnancy. 
+                         Consider that heart rate and body temperature are naturally elevated during pregnancy.
+                         Be extra cautious about dehydration levels. Use gentle, reassuring language.""",
+            
+            "exercising": """You are a health advisor with expertise in exercise physiology.
+                           Consider that elevated heart rate, temperature, and slight dehydration are normal during exercise.
+                           Focus on recovery and hydration advice.""",
+            
+            "working": """You are a health advisor focusing on workplace wellness.
+                        Consider factors like sitting for long periods and work-related stress.
+                        Provide practical advice for maintaining health during work hours.""",
+            
+            "default": """You are a helpful and informative health advisor.
+                         Provide general advice and insights based on the data."""
+        }
+        
     except (json.JSONDecodeError, KeyError) as e:  # Handle both JSON and key errors
         print(f"Error processing message: {e}")
         return  # Exit early if there's a problem with the data
 
-    print(f"\n✨ Health Data Received at {timestamp} ✨\n{'-'*50}\n")
-    print(f"SpO2: {spo2}, Blood Glucose: {blood_glucose}, Heart Rate: {heart_rate}, Dehydration: {dehydration}, Pulse: {pulse}, Temperature: {temperature}\n")
+    print(f"\n✨ Health Data Received at {timestamp} (Context: {context}) ✨\n{'-'*50}\n")
+    print(f"SpO2: {spo2}, Blood Glucose: {blood_glucose}, Heart Rate: {heart_rate}, "
+            f"Dehydration: {dehydration}, Pulse: {pulse}, Temperature: {temperature}\n")
 
+    # Create context-aware prompt
     prompt = f"""
-    You are a helpful and informative health advisor.  A patient is using a personal health sensor and has provided the following data.  Please provide general advice and insights based on this data.  Do not give medical diagnoses or treatment recommendations.  If any values are outside of typical ranges, mention that the patient should consult with a healthcare professional.  Be respectful and avoid alarming language.  Structure your response clearly using bullet points for each metric.
+    {context_prompts[context]}
+    
+    A patient is using a personal health sensor and has provided the following data.
+    Please provide general advice and insights based on this data and the current context.
+    Do not give medical diagnoses or treatment recommendations.
+    If any values are outside of typical ranges for their current activity, mention that 
+    the patient should consult with a healthcare professional.
+    Be respectful and avoid alarming language.
+    Structure your response clearly using bullet points for each metric.
 
     ```json
     {received_message}
     ```
     """
+
+        # Rest of your code remains the same...
+
+
+
+
+
 
     try:
         response = gemini_model.generate_content(prompt).text

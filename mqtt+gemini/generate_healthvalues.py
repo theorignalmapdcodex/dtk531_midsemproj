@@ -1,9 +1,58 @@
-# publisher.py
 import paho.mqtt.client as mqtt
 import time
 import json
 import random
 from datetime import datetime
+
+# Define health ranges for different contexts
+HEALTH_RANGES = {
+    "default": {
+        "SpO2": (95, 100),
+        "Blood_Glucose": (70, 140),
+        "Heart_Rate": (60, 100),
+        "Dehydration_Level": (0, 5),
+        "Pulse": (60, 100),
+        "Body_Temperature": (97.0, 99.0)
+    },
+    "pregnant": {
+        "SpO2": (95, 100),
+        "Blood_Glucose": (70, 140),  # Can be higher during pregnancy
+        "Heart_Rate": (70, 90),      # Typically elevated during pregnancy
+        "Dehydration_Level": (0, 4), # More sensitive to dehydration
+        "Pulse": (70, 90),           # Usually higher during pregnancy
+        "Body_Temperature": (97.5, 99.5)  # Slightly elevated
+    },
+    "exercising": {
+        "SpO2": (95, 100),
+        "Blood_Glucose": (70, 150),   # Can vary during exercise
+        "Heart_Rate": (90, 170),      # Elevated during exercise
+        "Dehydration_Level": (2, 7),  # Higher during exercise
+        "Pulse": (90, 170),           # Elevated during exercise
+        "Body_Temperature": (98.0, 101.0)  # Higher during exercise
+    },
+    "working": {
+        "SpO2": (95, 100),
+        "Blood_Glucose": (70, 140),
+        "Heart_Rate": (60, 90),
+        "Dehydration_Level": (0, 6),  # Can be higher if sedentary
+        "Pulse": (60, 90),
+        "Body_Temperature": (97.0, 99.0)
+    }
+}
+
+def generate_health_data(context="default"):
+    ranges = HEALTH_RANGES[context]
+    return {
+        "SpO2": round(random.uniform(*ranges["SpO2"]), 1),
+        "Blood_Glucose": random.randint(*ranges["Blood_Glucose"]),
+        "Heart_Rate": random.randint(*ranges["Heart_Rate"]),
+        "Dehydration_Level": round(random.uniform(*ranges["Dehydration_Level"]), 1),
+        "Pulse": random.randint(*ranges["Pulse"]),
+        "Body_Temperature": round(random.uniform(*ranges["Body_Temperature"]), 1),
+        "timestamp": datetime.now().isoformat(),
+        "context": context  # Add context to the data
+    }
+    
 
 def on_connect(client, userdata, flags, rc):
     if rc == 0:
@@ -23,25 +72,26 @@ publisher.connect("test.mosquitto.org", 1883, 60)
 publisher.loop_start()
 
 try:
+    # Simulate different contexts
+    contexts = ["default", "pregnant", "exercising", "working"]
+    current_context_index = 0
+    
     while True:
-        health_data = {
-            "SpO2": round(random.uniform(90, 100), 1),  # Realistic SpO2 range
-            "Blood_Glucose": random.randint(70, 150),  # Realistic Blood Glucose range
-            "Heart_Rate": random.randint(60, 100),  # Realistic Heart Rate range
-            "Dehydration_Level": round(random.uniform(0, 10), 1), # Example dehydration scale (0-10)
-            "Pulse": random.randint(60, 100), # Same range as heart rate (often similar)
-            "Body_Temperature": round(random.uniform(97.0, 99.0), 1), # Realistic body temperature range
-            "timestamp": datetime.now().isoformat()
-        }
-
-        topic = "gemini_llm_test/healthsensor" # More appropriate topic name
+        # Rotate through contexts every 5 iterations
+        if random.randint(1, 5) == 1:
+            current_context_index = (current_context_index + 1) % len(contexts)
+        
+        context = contexts[current_context_index]
+        health_data = generate_health_data(context)
+        
+        topic = "gemini_llm_test/healthsensor"
         publisher.publish(
             topic,
             json.dumps(health_data),
             qos=1
         )
-        print(f"Published to {topic}: {health_data}")
-        time.sleep(1)  # Adjust sleep time as needed
+        print(f"Published to {topic} (Context: {context}): {health_data}")
+        time.sleep(1)
 
 except KeyboardInterrupt:
     print("Stopping publisher...")
