@@ -1,58 +1,85 @@
+# PUBLISHER
+
 import paho.mqtt.client as mqtt
 import time
 import json
 import random
+import sqlite3
 from datetime import datetime
 
 # Define health ranges for different contexts
 HEALTH_RANGES = {
-    "default": {
+    "resting": {
         "SpO2": (95, 100),
         "Blood_Glucose": (70, 140),
         "Heart_Rate": (60, 100),
-        "Dehydration_Level": (0, 5),
-        "Pulse": (60, 100),
         "Body_Temperature": (97.0, 99.0)
     },
-    "pregnant": {
+    "running": {
         "SpO2": (95, 100),
-        "Blood_Glucose": (70, 140),  # Can be higher during pregnancy
-        "Heart_Rate": (70, 90),      # Typically elevated during pregnancy
-        "Dehydration_Level": (0, 4), # More sensitive to dehydration
-        "Pulse": (70, 90),           # Usually higher during pregnancy
-        "Body_Temperature": (97.5, 99.5)  # Slightly elevated
+        "Blood_Glucose": (70, 150),
+        "Heart_Rate": (90, 170),
+        "Body_Temperature": (98.0, 101.0)
+    },
+    "walking": {
+        "SpO2": (95, 100),
+        "Blood_Glucose": (70, 140),
+        "Heart_Rate": (70, 120),
+        "Body_Temperature": (97.5, 100.0)
     },
     "exercising": {
         "SpO2": (95, 100),
-        "Blood_Glucose": (70, 150),   # Can vary during exercise
-        "Heart_Rate": (90, 170),      # Elevated during exercise
-        "Dehydration_Level": (2, 7),  # Higher during exercise
-        "Pulse": (90, 170),           # Elevated during exercise
-        "Body_Temperature": (98.0, 101.0)  # Higher during exercise
-    },
-    "working": {
-        "SpO2": (95, 100),
-        "Blood_Glucose": (70, 140),
-        "Heart_Rate": (60, 90),
-        "Dehydration_Level": (0, 6),  # Can be higher if sedentary
-        "Pulse": (60, 90),
-        "Body_Temperature": (97.0, 99.0)
+        "Blood_Glucose": (70, 150),
+        "Heart_Rate": (90, 170),
+        "Body_Temperature": (98.0, 101.0)
     }
 }
 
-def generate_health_data(context="default"):
+# SQLite setup for storing resting and current values
+def init_db():
+    conn = sqlite3.connect("health_data.db")
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS resting_values 
+                 (metric TEXT PRIMARY KEY, value REAL)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS current_values 
+                 (timestamp TEXT, metric TEXT, value REAL, context TEXT)''')
+    conn.commit()
+    conn.close()
+
+# Store initial resting values (simulated on first run)
+def store_resting_values():
+    conn = sqlite3.connect("health_data.db")
+    c = conn.cursor()
+    resting_data = generate_health_data("resting")
+    for metric, value in resting_data.items():
+        if metric not in ["timestamp", "context"]:
+            c.execute("INSERT OR REPLACE INTO resting_values (metric, value) VALUES (?, ?)", (metric, value))
+    conn.commit()
+    conn.close()
+    print("Resting values stored:", resting_data)
+
+def generate_health_data(context="resting"):
     ranges = HEALTH_RANGES[context]
     return {
         "SpO2": round(random.uniform(*ranges["SpO2"]), 1),
         "Blood_Glucose": random.randint(*ranges["Blood_Glucose"]),
         "Heart_Rate": random.randint(*ranges["Heart_Rate"]),
-        "Dehydration_Level": round(random.uniform(*ranges["Dehydration_Level"]), 1),
-        "Pulse": random.randint(*ranges["Pulse"]),
         "Body_Temperature": round(random.uniform(*ranges["Body_Temperature"]), 1),
         "timestamp": datetime.now().isoformat(),
-        "context": context  # Add context to the data
+        "context": context
     }
-    
+
+def store_current_values(data):
+    conn = sqlite3.connect("health_data.db")
+    c = conn.cursor()
+    timestamp = data["timestamp"]
+    context = data["context"]
+    for metric, value in data.items():
+        if metric not in ["timestamp", "context"]:
+            c.execute("INSERT INTO current_values (timestamp, metric, value, context) VALUES (?, ?, ?, ?)", 
+                      (timestamp, metric, value, context))
+    conn.commit()
+    conn.close()
 
 def on_connect(client, userdata, flags, rc):
     if rc == 0:
@@ -60,40 +87,157 @@ def on_connect(client, userdata, flags, rc):
     else:
         print(f"Connection failed with code {rc}")
 
+# Initialize database and resting values on first run
+init_db()
+store_resting_values()
+
 # Create publisher client
 publisher = mqtt.Client()
 publisher.on_connect = on_connect
-
-# Connect to public broker
-print("Connecting to broker...")
-
-# (broker, port, keepalive)
 publisher.connect("broker.hivemq.com", 1883, 60)
 publisher.loop_start()
 
 try:
-    # Simulate different contexts
-    contexts = ["default", "pregnant", "exercising", "working"]
+    contexts = ["resting", "running", "walking", "exercising"]
     current_context_index = 0
     
     while True:
-        # Rotate through contexts every 5 iterations
         if random.randint(1, 5) == 1:
             current_context_index = (current_context_index + 1) % len(contexts)
         
         context = contexts[current_context_index]
         health_data = generate_health_data(context)
+        store_current_values(health_data)
         
-        topic = "gemini_llm_test/healthsensor"
-        publisher.publish(
-            topic,
-            json.dumps(health_data),
-            qos=1
-        )
+        topic = "health_sensor/data"
+        publisher.publish(topic, json.dumps(health_data), qos=1)
         print(f"Published to {topic} (Context: {context}): {health_data}")
         time.sleep(1)
 
 except KeyboardInterrupt:
-    print("Stopping publisher...")
+    print("Stopping publisher... User can now request insights.")
     publisher.loop_stop()
     publisher.disconnect()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# import paho.mqtt.client as mqtt
+# import time
+# import json
+# import random
+# from datetime import datetime
+
+# # Define health ranges for different contexts
+# HEALTH_RANGES = {
+#     "default": {
+#         "SpO2": (95, 100),
+#         "Blood_Glucose": (70, 140),
+#         "Heart_Rate": (60, 100),
+#         "Dehydration_Level": (0, 5),
+#         "Pulse": (60, 100),
+#         "Body_Temperature": (97.0, 99.0)
+#     },
+#     "pregnant": {
+#         "SpO2": (95, 100),
+#         "Blood_Glucose": (70, 140),  # Can be higher during pregnancy
+#         "Heart_Rate": (70, 90),      # Typically elevated during pregnancy
+#         "Dehydration_Level": (0, 4), # More sensitive to dehydration
+#         "Pulse": (70, 90),           # Usually higher during pregnancy
+#         "Body_Temperature": (97.5, 99.5)  # Slightly elevated
+#     },
+#     "exercising": {
+#         "SpO2": (95, 100),
+#         "Blood_Glucose": (70, 150),   # Can vary during exercise
+#         "Heart_Rate": (90, 170),      # Elevated during exercise
+#         "Dehydration_Level": (2, 7),  # Higher during exercise
+#         "Pulse": (90, 170),           # Elevated during exercise
+#         "Body_Temperature": (98.0, 101.0)  # Higher during exercise
+#     },
+#     "working": {
+#         "SpO2": (95, 100),
+#         "Blood_Glucose": (70, 140),
+#         "Heart_Rate": (60, 90),
+#         "Dehydration_Level": (0, 6),  # Can be higher if sedentary
+#         "Pulse": (60, 90),
+#         "Body_Temperature": (97.0, 99.0)
+#     }
+# }
+
+# def generate_health_data(context="default"):
+#     ranges = HEALTH_RANGES[context]
+#     return {
+#         "SpO2": round(random.uniform(*ranges["SpO2"]), 1),
+#         "Blood_Glucose": random.randint(*ranges["Blood_Glucose"]),
+#         "Heart_Rate": random.randint(*ranges["Heart_Rate"]),
+#         "Dehydration_Level": round(random.uniform(*ranges["Dehydration_Level"]), 1),
+#         "Pulse": random.randint(*ranges["Pulse"]),
+#         "Body_Temperature": round(random.uniform(*ranges["Body_Temperature"]), 1),
+#         "timestamp": datetime.now().isoformat(),
+#         "context": context  # Add context to the data
+#     }
+    
+
+# def on_connect(client, userdata, flags, rc):
+#     if rc == 0:
+#         print("Successfully connected to broker")
+#     else:
+#         print(f"Connection failed with code {rc}")
+
+# # Create publisher client
+# publisher = mqtt.Client()
+# publisher.on_connect = on_connect
+
+# # Connect to public broker
+# print("Connecting to broker...")
+
+# # (broker, port, keepalive)
+# publisher.connect("broker.hivemq.com", 1883, 60)
+# publisher.loop_start()
+
+# try:
+#     # Simulate different contexts
+#     contexts = ["default", "pregnant", "exercising", "working"]
+#     current_context_index = 0
+    
+#     while True:
+#         # Rotate through contexts every 5 iterations
+#         if random.randint(1, 5) == 1:
+#             current_context_index = (current_context_index + 1) % len(contexts)
+        
+#         context = contexts[current_context_index]
+#         health_data = generate_health_data(context)
+        
+#         topic = "gemini_llm_test/healthsensor"
+#         publisher.publish(
+#             topic,
+#             json.dumps(health_data),
+#             qos=1
+#         )
+#         print(f"Published to {topic} (Context: {context}): {health_data}")
+#         time.sleep(1)
+
+# except KeyboardInterrupt:
+#     print("Stopping publisher...")
+#     publisher.loop_stop()
+#     publisher.disconnect()
