@@ -115,7 +115,7 @@ subscriber.on_message = on_message
 
 # Connect to public broker
 print("Connecting to the University broker...")
-subscriber.connect("test.mosquitto.org", 1883, 60)
+subscriber.connect("broker.hivemq.com", 1883, 60)
 
 
 #################################################################################################################

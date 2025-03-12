@@ -68,7 +68,7 @@ publisher.on_connect = on_connect
 print("Connecting to broker...")
 
 # (broker, port, keepalive)
-publisher.connect("test.mosquitto.org", 1883, 60)
+publisher.connect("broker.hivemq.com", 1883, 60)
 publisher.loop_start()
 
 try:
